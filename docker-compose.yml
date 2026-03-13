@@ -8,7 +8,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: mark
+      POSTGRES_PASSWORD: *  # установить значения для параметров как в .env файле
       POSTGRES_DB: postgres
     ports:
       - "5432:5432"
