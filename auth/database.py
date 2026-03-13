@@ -8,6 +8,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Boolean, Integer, TIMESTAMP, ForeignKey
 from config import DB_HOST, DB_NAME, DB_PASS, DB_PORT, DB_USER
 from models.models import role
+import redis.asyncio as redis
+
+redis_client = redis.from_url("redis://localhost:6379/0", decode_responses=True)
 
 DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
