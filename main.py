@@ -97,7 +97,6 @@ async def auto_delete_expired_links():
                 if result.rowcount > 0:
                     print(f" [CLEANUP] Удалено просроченных ссылок: {result.rowcount}")
                 else:
-                    # Добавь этот принт для отладки, чтобы видеть, что цикл живой
                     print(f" [DEBUG] Проверка выполнена в {now}, ничего не удалено.")
 
         except Exception as e:
@@ -136,9 +135,8 @@ async def shorten_link(
     """Функция для создания короткой ссылки с генерацией или кастомным alias"""
     short_code = data.custom_alias
 
-    # data.expires_at += timedelta(days=30)
-    # data.expires_at = datetime.utcnow() + timedelta(minutes=3)
-    data.expires_at += timedelta(minutes=3)
+    data.expires_at += timedelta(days=30)
+    # data.expires_at += timedelta(minutes=3)  # Использовалось для отладки
     if data.expires_at and data.expires_at.tzinfo is not None:
         data.expires_at = data.expires_at.replace(tzinfo=None)
 
