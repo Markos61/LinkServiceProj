@@ -34,6 +34,7 @@ DB_NAME=postgres - имя БД
 DB_USER=postgres - имя Пользователя
 DB_PASS=*** - пароль 
 ```
+Также их нужно прописать в docker-compose.yml файл
 
 ### 3. Запуск БД и Redis
 ```bash
