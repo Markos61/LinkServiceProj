@@ -1,13 +1,14 @@
 from contextlib import asynccontextmanager
+import random
 from fastapi_users import FastAPIUsers
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Request
 from auth.manager import get_user_manager
 from auth.auth import auth_backend
 from auth.schemas import UserRead, UserCreate
 from pydantic import BaseModel, HttpUrl
 from typing import Optional
-from datetime import datetime, timedelta, timezone
-import random
+from datetime import datetime, timedelta
 import string
 import asyncio
 from fastapi.responses import RedirectResponse
@@ -17,19 +18,29 @@ from auth.database import Link, User, get_async_session, redis_client, async_ses
 
 fastapi_users = FastAPIUsers[User, int](
     get_user_manager,
-    [auth_backend],)
+    [auth_backend], )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Функция для запуска автоматического удаления просроченных ссылок из БД"""
-    print("!!! LIFESPAN STARTING !!!")
+    """Функция для запуска автоматического удаления
+     просроченных ссылок из БД"""
+    print("LIFESPAN STARTING...")
     deletion_task = asyncio.create_task(auto_delete_expired_links())
     yield
     deletion_task.cancel()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="Link Shortener API",
+              root_path_in_servers=False)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(
     fastapi_users.get_auth_router(auth_backend),
     prefix="/auth/jwt",
@@ -49,12 +60,12 @@ optional_current_user = fastapi_users.current_user(active=True, optional=True)
 
 @app.get("/protected-route")
 def protected_route(user: User = Depends(current_user)):
-    return f"Hello, {user.username}"
+    return f"Привет, {user.username}"
 
 
 @app.get("/unprotected-route")
 def unprotected_route():
-    return f"Hello, anonymous"
+    return f"Привет, аноним"
 
 
 class LinkCreate(BaseModel):
@@ -121,13 +132,14 @@ async def update_link_statistics(short_code: str):
         await session.commit()
 
 
-def generate_code(length=6):
+async def generate_code(length=6):
     """Функция для генерации ссылки"""
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
 @app.post("/links/shorten", response_model=LinkResponse)
 async def shorten_link(
+        request: Request,
         data: LinkCreate,
         user: User = Depends(optional_current_user),  # Может быть None
         session: AsyncSession = Depends(get_async_session)
@@ -147,11 +159,13 @@ async def shorten_link(
             raise HTTPException(status_code=400, detail="Этот alias уже занят")
     else:
         while True:
-            short_code = generate_code()
+            short_code = await generate_code()
             query = select(Link).where(Link.short_code == short_code)
             result = await session.execute(query)
             if not result.scalar_one_or_none():
                 break
+
+    base_url = str(request.base_url).rstrip("/")
 
     new_link = Link(
         original_url=str(data.original_url),
@@ -162,7 +176,12 @@ async def shorten_link(
 
     session.add(new_link)
     await session.commit()
-    return new_link
+    # return new_link
+    return {
+        "short_url": f"{base_url}/{short_code}",
+        "short_code": short_code,
+        "original_url": data.original_url
+    }
 
 
 @app.get("/{short_code}")
@@ -293,3 +312,6 @@ async def search_links(
     links = result.scalars().all()
 
     return [{"short_code": l.short_code, "original_url": l.original_url} for l in links]
+
+# uvicorn main:app --host 127.0.0.1 --port 8000
+# C:\Windows\System32\OpenSSH\ssh.exe -R 80:127.0.0.1:8000 serveo.net
